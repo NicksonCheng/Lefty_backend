@@ -29,7 +29,9 @@ app.use("/merchants", merchantRoutes);
 
 app.get("/", (req, res) => {
   // 模擬不同 server 延遲
-  console.log("test");
+  return res.json({
+    message: `${process.env.DB_HOST}, ${process.env.DB_NAME}, ${process.env.DB_USER}, ${process.env.DB_PASSWORD}`,
+  });
   const delay = Math.floor(Math.random() * 2000);
   setTimeout(() => {
     res.json({
