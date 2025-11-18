@@ -19,7 +19,11 @@ jobs:
 
       - name: 停掉舊容器 + 拉最新 code + 重啟
         run: |
-          docker compose down --remove-orphans
+          docker compose down --remove-orphans 
+          if [ ! -f .env ]; then
+            cp .env.example .env
+            echo "⚙️  已從 .env.example 建立 .env"
+          fi
           git pull origin master
           docker compose up -d --build
           docker image prune -f
