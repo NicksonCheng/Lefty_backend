@@ -17,10 +17,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 建立 .env 檔案（從 example 複製）
+      - name: 正確檔案路徑
         run: |
-          cp .env.example .env
-          echo "⚙️  已從 .env.example 建立 .env"
+          # 直接跳到你本來就放專案的地方（裡面有正確的 .env）
+          cd /Users/nihaocheng/Desktop/Sideproject/Lefty_backend/Lefty_backend
+          
+          # 強制切到 main 分支並拉最新 code
+          git checkout master
+          git pull origin master
 
       - name: Docker Compose 重啟
         run: |
