@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "ES6", // javascript version
+    "module": "CommonJS", // module system
+    "rootDir": "./src", // root directory of the source files
+    "outDir": "./dist", // output directory for compiled files
+    "esModuleInterop": true, // enables emit interoperability between CommonJS and ES Modules
+    "strict": true // enables all strict type-checking options
+  }
+}
