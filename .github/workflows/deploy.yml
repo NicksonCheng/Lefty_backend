@@ -17,14 +17,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 停掉舊容器 + 拉最新 code + 重啟
+      - name: 建立 .env 檔案（從 example 複製）
         run: |
-          docker compose down --remove-orphans 
-          if [ ! -f .env ]; then
-            cp .env.example .env
-            echo "⚙️  已從 .env.example 建立 .env"
-          fi
-          git pull origin master
+          cp .env.example .env
+          echo "⚙️  已從 .env.example 建立 .env"
+
+      - name: Docker Compose 重啟
+        run: |
+          docker compose down --remove-orphans
           docker compose up -d --build
           docker image prune -f
-          echo "✨ 自動部署完成！$(date)"
+          echo "✨ 部署完成 $(date)"
