@@ -1,0 +1,95 @@
+services:
+  mysql:
+    image: mysql:8
+    container_name: mysql_db
+    restart: always
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app_net
+  backend1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend_app_1
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3001:3000" # external port 3000 to internal port 3000
+    networks:
+      - app_net
+    volumes:
+      - ./backend/src:/app/src
+    environment:
+      - HOSTNAME=backend1
+      - ARTIFICIAL_DELAY=50   
+
+  backend2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend_app_2
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3002:3000"
+    networks:
+      - app_net
+    volumes:
+      - ./backend/src:/app/src
+    environment:
+      - HOSTNAME=backend2
+      - ARTIFICIAL_DELAY=50   
+
+  backend3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend_app_3
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3003:3000"
+    networks:
+      - app_net
+    volumes:
+      - ./backend/src:/app/src
+    environment:
+      - HOSTNAME=backend3
+      - ARTIFICIAL_DELAY=50   
+
+
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend1
+      - backend2
+      - backend3
+    networks:
+      - app_net
+
+networks:
+  app_net:
+
+volumes:
+  mysql_data:
