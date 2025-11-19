@@ -29,9 +29,9 @@ app.use("/merchants", merchantRoutes);
 
 app.get("/", (req, res) => {
   // 模擬不同 server 延遲
-  return res.json({
-    message: `${process.env.DB_HOST}, ${process.env.DB_NAME}, ${process.env.DB_USER}, ${process.env.DB_PASSWORD}`,
-  });
+  // return res.json({
+  //   message: `${process.env.DB_HOST}, ${process.env.DB_NAME}, ${process.env.DB_USER}, ${process.env.DB_PASSWORD}`,
+  // });
   const delay = Math.floor(Math.random() * 2000);
   setTimeout(() => {
     res.json({
@@ -69,6 +69,29 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    const mealbox_sql = `
+      CREATE TABLE IF NOT EXISTS mealbox (
+        id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+        store_name      VARCHAR(100) NOT NULL,
+        title           VARCHAR(200) NOT NULL,
+        description     TEXT,
+        original_price  INT NOT NULL,
+        discount_price  INT NOT NULL,
+        quantity        INT NOT NULL DEFAULT 1,
+        lat             DECIMAL(10, 8) NOT NULL,
+        lng             DECIMAL(11, 8) NOT NULL,
+        location        POINT NOT NULL SRID 4326,   -- 這才是重點！
+        available       TINYINT(1) NOT NULL DEFAULT 1,
+        pickup_until    DATETIME NOT NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+        INDEX idx_location (lat, lng),
+        SPATIAL INDEX idx_spatial_location (location)   -- 只能對 location 這個 POINT 欄位
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `;
+
+    await connection.query(mealbox_sql);
     connection.release();
     console.log("MYSQL Database initialized successfully");
   } catch (error) {
