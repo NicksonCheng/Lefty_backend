@@ -7,15 +7,18 @@ services:
       - .env
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
     networks:
       - app_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
   backend1:
     build:
       context: ./backend
@@ -24,6 +27,9 @@ services:
     restart: always
     env_file:
       - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "3001:3000" # external port 3000 to internal port 3000
     networks:
@@ -42,6 +48,9 @@ services:
     restart: always
     env_file:
       - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "3002:3000"
     networks:
@@ -60,6 +69,9 @@ services:
     restart: always
     env_file:
       - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "3003:3000"
     networks:
