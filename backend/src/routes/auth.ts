@@ -2,7 +2,16 @@ import { Router, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import pool from "../db";
-import { RowDataPacket } from "mysql2";
+import { RowDataPacket, ResultSetHeader } from "mysql2";
+
+/*
+  ResultSetHeader
+  insertId	number	新插入記錄的自動遞增 ID。	這是您在剛才的 INSERT 範例中最需要的屬性。
+  affectedRows	number	受本次操作影響的行數。	INSERT 通常為 1；DELETE 或 UPDATE 則是被刪除或更新的行數。
+  changedRows	number	實際內容被更改的行數。	主要用於 UPDATE 語句。如果您嘗試用相同的資料更新一筆記錄，affectedRows 可能為 1，但 changedRows 可能為 0。
+  fieldCount	number	欄位數量。	通常為 0，因為非查詢語句不回傳欄位資料。
+  warningCount	number	執行過程中產生的警告數。	用於錯誤檢查或診斷。
+*/
 
 const router = Router();
 
@@ -42,12 +51,15 @@ router.post("/register", async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Insert new user
-    await pool.query(
+    const [result] = await pool.query<ResultSetHeader>(
       "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
       [name, email, hashedPassword, role]
     );
-
-    res.status(201).json({ message: "User registered successfully" });
+    const newUserId: number = result.insertId;
+    res.status(200).json({
+      message: "User registered successfully",
+      user_id: newUserId,
+    });
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -87,7 +99,12 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     // Generate JWT
-    const payload = { id: user.id, name: user.name, email: user.email };
+    const payload = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
     const secret = process.env.JWT_SECRET || "dev_secret_change_me";
     const token = jwt.sign(payload, secret, { expiresIn: "1h" });
 

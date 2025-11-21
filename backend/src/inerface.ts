@@ -12,6 +12,13 @@ export interface User extends RowDataPacket {
   email: string;
   password: string;
 }
+export interface MerchantData {
+  store_name: string;
+  address: string;
+  phone: string;
+  lat: number;
+  lng: number;
+}
 export interface MealBox extends RowDataPacket {
   id: number;
   store_name: string;

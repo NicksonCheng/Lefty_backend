@@ -4,6 +4,7 @@ import { RowDataPacket } from "mysql2";
 import { authenticateToken } from "../middleware/auth";
 import { redis } from "../utils/upstashRedis";
 import { MealBox, User } from "../inerface";
+import { findNearbyMerchants } from "../repositories/mealbox.repository";
 const router = Router();
 
 // Custom Request interface with user data
@@ -45,20 +46,58 @@ router.get(
     }
   }
 );
-
+/**
+ * GET /nearby
+ * Search nearby mealbox from users location
+ * Query params:
+ * - lat (required): User latitude
+ * - lng (required): User longitude
+ * - radius (required): Search radius in kilometers
+ * - limit (optional): Max merchants to return (default: 10)
+ * Returns: List of nearby merchants with mealboxes
+ * {
+      "merchant_id": 101,
+      "store_name": "大安區健康便當",
+      "distance_meters": 350,  // 計算出的距離
+      "lat": 25.0330,
+      "lng": 121.5645,
+      "avatar_url": "http://.../logo.jpg",
+      "mealboxes": [
+        {
+          "id": 501,
+          "name": "香煎雞腿排餐盒 (剩餘)",
+          "original_price": 150,
+          "discount_price": 80,
+          "quantity": 3,
+          "pickup_time": "20:00-21:00",
+          "img_url": "http://.../food1.jpg"
+        },
+        {
+          "id": 502,
+          "name": "鯖魚便當",
+          "original_price": 130,
+          "discount_price": 70,
+          "quantity": 1,
+          "pickup_time": "20:00-21:00",
+          "img_url": "http://.../food2.jpg"
+        }
+      ]
+    },
+ */
 router.get("/nearby", async (req: Request, res: Response) => {
   try {
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
     // 🌟 radius 預設為 3000 (米)
     const radius = parseInt((req.query.radius as string) || "3000");
+    const limit = parseInt((req.query.limit as string) || "10");
 
     if (!lat || !lng) {
       return res.status(400).json({ error: "lat & lng required" });
     }
     const cacheKey = generateCacheKey(lat, lng);
     const startTime = Date.now();
-    // ==== 1. 先查 Redis ====
+    // ==== 1. search Redis ====
     const cached: string | null = await redis.get(cacheKey);
     if (cached) {
       console.log(`Redis HIT! ${Date.now() - startTime}ms`);
@@ -68,43 +107,15 @@ router.get("/nearby", async (req: Request, res: Response) => {
         timeMs: Date.now() - startTime,
       });
     }
-    // search redis cache
-    const sql = `
-      SELECT 
-        id, store_name, title, description,
-        original_price, discount_price, quantity,
-        lat, lng, pickup_until,
-        -- 🌟 計算距離，結果為米
-        ST_Distance_Sphere(location, POINT(?, ?)) AS distance_m,
-        -- 轉為 km 以便前端顯示
-        ROUND(ST_Distance_Sphere(location, POINT(?, ?)) / 1000, 2) AS distance_km
-      FROM mealbox
-      WHERE 
-        available = 1
-        AND quantity > 0
-        AND pickup_until > NOW()
-        -- 🌟 WHERE 條件使用空間索引 (高效)
-        AND ST_Distance_Sphere(location, POINT(?, ?)) <= ?
-      ORDER BY 
-        distance_m ASC -- 根據米的距離排序
-      LIMIT 50;
-    `;
-
-    // 注意：MySQL POINT 函數是 POINT(lng, lat)
-    const [rows] = await pool.query<RowDataPacket[]>(sql, [
-      lng,
-      lat, // 第一次計算 distance_m/km 用
-      lng,
-      lat, // 第二次計算 distance_m/km 用 (確保 ROUND 得到的值相同)
-      lng,
-      lat,
-      radius, // 第三次和第四次用於 WHERE 條件，radius 以**米**傳入
-    ]);
+    // ==== 2. search MySQL ====
+    const data = await findNearbyMerchants(lat, lng, radius, limit);
     // save the result to redis
-    await redis.set(cacheKey, JSON.stringify(rows), { ex: 30 }); // cache 30 seconds
+    await redis.set(cacheKey, JSON.stringify(data), { ex: 30 }); // cache 30 seconds
     console.log(`Redis MISS! ${Date.now() - startTime}ms`);
+
+    // response
     res.status(200).json({
-      data: rows,
+      data: data,
       source: "mysql",
       timeMs: Date.now() - startTime,
     });

@@ -1,9 +1,8 @@
 import express, { Request, Response } from "express";
 const cors = require("cors");
 import dotenv from "dotenv";
-import pool from "./db";
-import { initializeMongoDB } from "./mongodb";
 import { RowDataPacket } from "mysql2";
+import { initializeDatabase } from "./db";
 // Import route modules
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/user";
@@ -55,49 +54,6 @@ interface AuthRequest extends Request {
   user?: any;
 }
 
-// Initialize database
-async function initializeDatabase() {
-  try {
-    const connection = await pool.getConnection();
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(50) NOT NULL UNIQUE,
-        email VARCHAR(100) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL,
-        role ENUM('user', 'merchant') DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    const mealbox_sql = `
-      CREATE TABLE IF NOT EXISTS mealbox (
-        id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-        store_name      VARCHAR(100) NOT NULL,
-        title           VARCHAR(200) NOT NULL,
-        description     TEXT,
-        original_price  INT NOT NULL,
-        discount_price  INT NOT NULL,
-        quantity        INT NOT NULL DEFAULT 1,
-        lat             DECIMAL(10, 8) NOT NULL,
-        lng             DECIMAL(11, 8) NOT NULL,
-        location        POINT NOT NULL SRID 4326,   -- 這才是重點！
-        available       TINYINT(1) NOT NULL DEFAULT 1,
-        pickup_until    DATETIME NOT NULL,
-        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-        INDEX idx_location (lat, lng),
-        SPATIAL INDEX idx_spatial_location (location)   -- 只能對 location 這個 POINT 欄位
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `;
-
-    await connection.query(mealbox_sql);
-    connection.release();
-    console.log("MYSQL Database initialized successfully");
-  } catch (error) {
-    console.error("Error initializing database:", error);
-  }
-}
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {

@@ -35,10 +35,18 @@ services:
     networks:
       - app_net
     volumes:
-      - ./backend/src:/app/src
+
+      - /app/node_modules  # 避開本機 node_modules，使用容器內安裝好的依賴
     environment:
       - HOSTNAME=backend1
       - ARTIFICIAL_DELAY=50   
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/src
+          target: /app/src
+        - action: rebuild
+          path: ./backend/package.json
 
   backend2:
     build:
@@ -56,10 +64,19 @@ services:
     networks:
       - app_net
     volumes:
-      - ./backend/src:/app/src
+
+      - /app/node_modules  # 避開本機 node_modules，使用容器內安裝好的依賴
     environment:
       - HOSTNAME=backend2
-      - ARTIFICIAL_DELAY=50   
+      - ARTIFICIAL_DELAY=50  
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/src
+          target: /app/src
+        - action: rebuild
+          path: ./backend/package.json
+      
 
   backend3:
     build:
@@ -77,12 +94,18 @@ services:
     networks:
       - app_net
     volumes:
-      - ./backend/src:/app/src
+      # - ./backend:/app     # 將本機的 backend 資料夾同步到容器內的 /app
+      - /app/node_modules  # 避開本機 node_modules，使用容器內安裝好的依賴
     environment:
       - HOSTNAME=backend3
       - ARTIFICIAL_DELAY=50   
-
-
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/src
+          target: /app/src
+        - action: rebuild
+          path: ./backend/package.json
 
   nginx:
     image: nginx:latest
