@@ -14,6 +14,23 @@ export async function checkExistingMerchant(user_id: number): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(sql, user_id);
   return rows.length > 0;
 }
+
+/**
+ * Get merchant info by user_id
+ * @param userId - user id
+ * @returns merchant data or null
+ */
+export async function getMerchantByUserId(userId: number): Promise<any | null> {
+  const sql = `
+    SELECT id, user_id, store_name, address, phone, lat, lng, created_at, updated_at
+    FROM merchants 
+    WHERE user_id = ? 
+    LIMIT 1
+  `;
+  const [rows] = await pool.query<RowDataPacket[]>(sql, [userId]);
+  return rows.length > 0 ? rows[0] : null;
+}
+
 /**
  * insert merchant into merchants table
  * @param userId - user id related to merchant table

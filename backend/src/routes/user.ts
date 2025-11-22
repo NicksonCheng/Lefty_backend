@@ -36,10 +36,25 @@ router.get(
         return res.status(404).json({ error: "User not found" });
       }
 
-      res.status(200).json({
+      const userData = {
+        id: users[0].id,
         email: users[0].email,
         name: users[0].name,
-      });
+        role: users[0].role,
+      };
+
+      // If user is merchant, get merchant_id
+      if (users[0].role === 'merchant') {
+        const [merchants] = await pool.query<RowDataPacket[]>(
+          "SELECT id FROM merchants WHERE user_id = ?",
+          [users[0].id]
+        );
+        if (merchants.length > 0) {
+          (userData as any).merchant_id = merchants[0].id;
+        }
+      }
+
+      res.status(200).json(userData);
     } catch (error) {
       console.error("Profile error:", error);
       res.status(500).json({ error: "Internal server error" });

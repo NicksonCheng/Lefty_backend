@@ -113,3 +113,23 @@ export async function updateMealbox(
   const [result] = await pool.query(UPDATE_MEALBOX_SQL, params);
   return (result as any).affectedRows; // 回傳影響的行數 (0 或 1)
 }
+
+/**
+ * 獲取商家的所有餐盒產品
+ */
+export async function getMealboxesByMerchantId(
+  merchantId: number
+): Promise<any[]> {
+  const sql = `
+    SELECT 
+      id, merchant_id, name, description, original_price, discount_price,
+      quantity, pickup_time_start, pickup_time_end, img_url, is_active,
+      created_at, updated_at
+    FROM mealboxes
+    WHERE merchant_id = ?
+    ORDER BY created_at DESC
+  `;
+
+  const [rows] = await pool.query<RowDataPacket[]>(sql, [merchantId]);
+  return rows;
+}

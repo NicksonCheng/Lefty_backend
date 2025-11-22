@@ -98,6 +98,18 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Invalid Password" });
     }
 
+    // If user is merchant, get merchant_id
+    let merchantId = null;
+    if (user.role === "merchant") {
+      const [merchants] = await pool.query<RowDataPacket[]>(
+        "SELECT id FROM merchants WHERE user_id = ?",
+        [user.id]
+      );
+      if (merchants.length > 0) {
+        merchantId = merchants[0].id;
+      }
+    }
+
     // Generate JWT
     const payload = {
       id: user.id,
@@ -111,7 +123,13 @@ router.post("/login", async (req: Request, res: Response) => {
     // Return token and user info (exclude password)
     return res.status(200).json({
       token,
-      user: { id: user.id, name: user.name, email: user.email },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        merchant_id: merchantId,
+      },
     });
   } catch (error) {
     console.log("Login error:", error);
