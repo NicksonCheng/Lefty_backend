@@ -2,9 +2,9 @@ import { Router, Request, Response } from "express";
 import pool from "../db";
 import { RowDataPacket } from "mysql2";
 import { authenticateToken } from "../middleware/auth";
-import { redis } from "../utils/upstashRedis";
-import { MealBox, User } from "../inerface";
-import { findNearbyMerchants } from "../repositories/mealbox.repository";
+import { getNearbyData } from "../services/mealbox.service";
+import { MealBox, User } from "../interface";
+
 const router = Router();
 
 // Custom Request interface with user data
@@ -48,7 +48,15 @@ router.get(
 );
 /**
  * GET /nearby
- * Search nearby mealbox from users location
+ * @summary Search nearby mealbox from users location
+ * @param {number} req.query.lat - User latitude
+ * @param {number} req.query.lng - User longitude
+ * @param {number} req.query.radius - Search radius in meters (default: 3000)
+ * @param {number} req.query.limit - Max merchants to return (default: 10)
+ * @returns {object} 200 - success response
+ * @returns {object} 400 - bad request response
+ * @returns {object} 500 - internal server error response
+ * 
  * Query params:
  * - lat (required): User latitude
  * - lng (required): User longitude
@@ -86,39 +94,36 @@ router.get(
  */
 router.get("/nearby", async (req: Request, res: Response) => {
   try {
+    const startTime = Date.now();
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
-    // 🌟 radius 預設為 3000 (米)
     const radius = parseInt((req.query.radius as string) || "3000");
-    const limit = parseInt((req.query.limit as string) || "10");
+    const limit = parseInt((req.query.limit as string) || "50");
 
     if (!lat || !lng) {
-      return res.status(400).json({ error: "lat & lng required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "lat & lng required" });
     }
-    const cacheKey = generateCacheKey(lat, lng);
-    const startTime = Date.now();
-    // ==== 1. search Redis ====
-    const cached: string | null = await redis.get(cacheKey);
-    if (cached) {
-      console.log(`Redis HIT! ${Date.now() - startTime}ms`);
-      return res.status(200).json({
-        data: JSON.parse(cached),
-        source: "redis",
-        timeMs: Date.now() - startTime,
-      });
-    }
-    // ==== 2. search MySQL ====
-    const data = await findNearbyMerchants(lat, lng, radius, limit);
-    // save the result to redis
-    await redis.set(cacheKey, JSON.stringify(data), { ex: 30 }); // cache 30 seconds
-    console.log(`Redis MISS! ${Date.now() - startTime}ms`);
 
-    // response
+    // 🌟 只需要調用 Service 層，完全沒有 SQL 程式碼
+    const { data, source } = await getNearbyData(lat, lng, radius, limit);
+
+    console.log(
+      `${source} ${source === "redis" ? "HIT" : "MISS"}! ${
+        Date.now() - startTime
+      }ms`
+    );
+
     res.status(200).json({
+      success: true,
       data: data,
-      source: "mysql",
+      source: source,
       timeMs: Date.now() - startTime,
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
 });
 export default router;

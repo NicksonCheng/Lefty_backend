@@ -1,6 +1,6 @@
 import pool from "../db";
 import { RowDataPacket } from "mysql2";
-import { MerchantData } from "../inerface";
+import { MerchantData } from "../interface";
 // SQL 語句用於插入商家資料。ST_PointFromText 用於從經緯度生成 POINT 欄位。
 const INSERT_MERCHANT_SQL = `
   INSERT INTO merchants (

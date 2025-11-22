@@ -5,7 +5,8 @@ import {
   insertMealbox,
   updateMealbox,
 } from "../repositories/mealbox.repository";
-
+import { findNearbyMerchants } from "../repositories/mealbox.repository";
+import { redis } from "../utils/upstashRedis";
 // 定義回傳給 Controller 的結果類型
 interface ProductResult {
   submitted_name: string;
@@ -124,4 +125,28 @@ export async function handleBatchProductInsert(
     : `Processed ${products.length} products with ${successCount} successful ${verb} operations.`;
 
   return { success: overallSuccess, message, results };
+}
+
+// 業務邏輯，例如：Cache 處理、資料驗證、複雜計算
+export async function getNearbyData(
+  lat: number,
+  lng: number,
+  radius: number,
+  limit: number
+) {
+  const cacheKey = `nearby:${lat}:${lng}:${radius}:${limit}`;
+
+  // 檢查 Cache (業務邏輯)
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return { data: JSON.parse(cached), source: "redis" };
+  }
+
+  // 調用 Repository 層獲取資料 (資料庫操作)
+  const data = await findNearbyMerchants(lat, lng, radius, limit);
+
+  // 設定 Cache (業務邏輯)
+  await redis.set(cacheKey, JSON.stringify(data), { ex: 30 });
+
+  return { data, source: "mysql" };
 }

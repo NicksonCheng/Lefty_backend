@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { handleBatchProductInsert } from "../services/mealbox.service";
 import { authenticateToken } from "../middleware/auth";
 import { setupNewMerchant } from "../services/merchant.service";
-import { MerchantData } from "../inerface";
+import { MerchantData } from "../interface";
 interface AuthRequest extends Request {
   user?: any;
 }
@@ -22,15 +22,17 @@ router.get("/", async (req: Request, res: Response) => {});
 
 /**
  * POST /merchants/setup
- * setup merchant
- * Query params:{
- *  user_id: number,
- *  store_name: string,
- *  address: string,
- *  phone: string
- *  lat: number,
- *  lng: number,
- * }
+ * @summary create new merchants profile
+ * @param {object} req.body
+ * @param {number} req.body.user_id - user id
+ * @param {string} req.body.store_name - store name
+ * @param {string} req.body.address - store address
+ * @param {string} req.body.phone - store phone
+ * @param {number} req.body.lat - store latitude
+ * @param {number} req.body.lng - store longitude
+ * @returns {object} 201 - success response
+ * @returns {object} 403 - forbidden response
+ * @returns {object} 409 - conflict response
  */
 router.post(
   "/setup",
@@ -71,43 +73,28 @@ router.post(
 );
 /**
  * POST /merchants/insert
- * merchant insert mealbox
- * Query params:
- * {
-  "merchant_id": 101,
-  "products": [
-    {
-      // 新增商品
-      "name": "今日剩餘素食餐盒",
-      "description": "健康時蔬搭配五穀米，CP值超高！",
-      "original_price": 100,
-      "discount_price": 50,
-      "quantity": 3,
-      "pickup_time_start": "19:30",
-      "pickup_time_end": "20:30"
-    },
-    {
-      // 更新現有商品 P9876 的數量
-      "product_id": 9876,
-      "name": "招牌牛肉麵套餐", 
-      "original_price": 150,
-      "discount_price": 75,
-      "quantity": 1, 
-      "pickup_time_start": "20:00",
-      "pickup_time_end": "20:45",
-      "img_url": "http://example.com/beef_noodle.jpg"
-    }
-  ]
-}
- */
-// =======================================================
-// 1. POST /api/mealboxes - 專門用於新增產品 (INSERT)
-// =======================================================
+ * @summary merchant insert mealbox
+ * @param {object} req.body
+ * @param {number} req.body.merchant_id - merchant id
+ * @param {array} req.body.products - array of products to insert
+ * @param {string} req.body.products[].name - product name
+ * @param {string} req.body.products[].description - product description
+ * @param {number} req.body.products[].original_price - product original price
+ * @param {number} req.body.products[].discount_price - product discount price
+ * @param {number} req.body.products[].quantity - product quantity
+ * @param {string} req.body.products[].pickup_time_start - product pickup time start
+ * @param {string} req.body.products[].pickup_time_end - product pickup time end
+ * @param {string} req.body.products[].img_url - product image URL
+ * @returns {object} 201 - success response
+ * @returns {object} 400 - bad request response
+ * @returns {object} 500 - internal server error response
+ **/
 router.post("/mealboxes", async (req: Request, res: Response) => {
   // 注意：這裡假設 req: AuthRequest 已通過 JWT 驗證，並擁有 req.user.merchant_id
   const merchant_id = req.body.merchant_id; // 或者從 JWT payload (req.user) 中獲取
   const products = req.body.products as any[];
-
+  console.log(merchant_id);
+  console.log(products);
   // 基礎驗證
   if (!merchant_id || !Array.isArray(products) || products.length === 0) {
     return res.status(400).json({
@@ -136,9 +123,24 @@ router.post("/mealboxes", async (req: Request, res: Response) => {
   }
 });
 
-// =======================================================
-// 2. PUT /api/mealboxes - 專門用於更新產品 (UPDATE)
-// =======================================================
+/**
+ * PUT /merchants/mealboxes
+ * @summary merchant update mealbox
+ * @param {object} req.body
+ * @param {number} req.body.merchant_id - merchant id
+ * @param {array} req.body.products - array of products to update (each must include product_id)
+ * @param {string} req.body.products[].name - product name
+ * @param {string} req.body.products[].description - product description
+ * @param {number} req.body.products[].original_price - product original price
+ * @param {number} req.body.products[].discount_price - product discount price
+ * @param {number} req.body.products[].quantity - product quantity
+ * @param {string} req.body.products[].pickup_time_start - product pickup time start
+ * @param {string} req.body.products[].pickup_time_end - product pickup time end
+ * @param {string} req.body.products[].img_url - product image URL
+ * @returns {object} 200 - success response
+ * @returns {object} 400 - bad request response
+ * @returns {object} 500 - internal server error response
+ **/
 router.put("/mealboxes", async (req: Request, res: Response) => {
   const merchant_id = req.body.merchant_id; // 或者從 JWT payload (req.user) 中獲取
   const products = req.body.products as any[];

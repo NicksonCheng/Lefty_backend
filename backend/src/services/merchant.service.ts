@@ -3,7 +3,7 @@ import {
   checkExistingMerchant,
   insertNewMerchant,
 } from "../repositories/merchant.repository";
-import { MerchantData } from "../inerface";
+import { MerchantData } from "../interface";
 export async function setupNewMerchant(
   userId: number,
   userRole: string,
