@@ -91,12 +91,39 @@ jobs:
             echo "Waiting... ($i/30)"
             sleep 2
           done
-
-      - name: 🗄️ Initialize Database Schema
+          
+      - name: 🗄️ Create test database and initialize schema
         run: |
-          echo "Creating database schema..."
+          echo "Creating database and schema..."
+          
+          # 1. 建立資料庫用戶（防止已存在錯誤）
+          mysql -h localhost -u root -proot_password -e "
+            CREATE USER IF NOT EXISTS 'lefty_test_user'@'%' IDENTIFIED BY '123456';
+            GRANT ALL PRIVILEGES ON Lefty_Test.* TO 'lefty_test_user'@'%';
+            FLUSH PRIVILEGES;
+          " || true
+          
+          # 2. 建立資料庫
+          mysql -h localhost -u root -proot_password -e "CREATE DATABASE IF NOT EXISTS Lefty_Test;"
+          
+          # 3. 執行 schema.sql 建立表
           mysql -h localhost -u root -proot_password Lefty_Test < mysql-init/schema.sql
-          echo "✅ Database schema created successfully"
+          
+          echo "✅ Database and schema created successfully"
+          
+      - name: 🔍 Verify Database Schema
+        run: |
+          echo "驗證資料庫表格..."
+          mysql -h localhost -u root -proot_password Lefty_Test -e "SHOW TABLES;"
+          echo ""
+          echo "驗證 users 表結構..."
+          mysql -h localhost -u root -proot_password Lefty_Test -e "DESCRIBE users;"
+          echo ""
+          echo "驗證 merchants 表結構..."
+          mysql -h localhost -u root -proot_password Lefty_Test -e "DESCRIBE merchants;"
+          echo ""
+          echo "驗證 mealboxes 表結構..."
+          mysql -h localhost -u root -proot_password Lefty_Test -e "DESCRIBE mealboxes;"
 
       - name: 🏪 Setup Test Data (5000 merchants)
         working-directory: ./backend

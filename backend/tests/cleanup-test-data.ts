@@ -44,24 +44,43 @@ async function cleanupTestData() {
   console.log("=".repeat(60));
 
   try {
+    // 檢查表是否存在
+    const [tables] = await pool.query(`
+      SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('mealboxes', 'merchants', 'users')
+    `, [process.env.TEST_DB_NAME?.trim() || "Lefty_Test"]);
+
+    if ((tables as any[]).length === 0) {
+      console.log("\n⚠️  資料庫表格未建立，跳過清理");
+      return;
+    }
+
     // 1. 刪除測試商家的餐盒
     console.log("\n📦 刪除測試餐盒...");
-    const [mealboxResult] = await pool.query(`
-      DELETE mb FROM mealboxes mb
-      JOIN merchants m ON mb.merchant_id = m.id
-      JOIN users u ON m.user_id = u.id
-      WHERE u.email LIKE 'test%@merchant.com'
-    `);
-    console.log(`✅ 已刪除 ${(mealboxResult as any).affectedRows} 個餐盒`);
+    try {
+      const [mealboxResult] = await pool.query(`
+        DELETE mb FROM mealboxes mb
+        JOIN merchants m ON mb.merchant_id = m.id
+        JOIN users u ON m.user_id = u.id
+        WHERE u.email LIKE 'test%@merchant.com'
+      `);
+      console.log(`✅ 已刪除 ${(mealboxResult as any).affectedRows} 個餐盒`);
+    } catch (err) {
+      console.log("⚠️  餐盒表查詢失敗，繼續");
+    }
 
     // 2. 刪除測試商家
     console.log("\n🏪 刪除測試商家...");
-    const [merchantResult] = await pool.query(`
-      DELETE m FROM merchants m
-      JOIN users u ON m.user_id = u.id
-      WHERE u.email LIKE 'test%@merchant.com'
-    `);
-    console.log(`✅ 已刪除 ${(merchantResult as any).affectedRows} 個商家`);
+    try {
+      const [merchantResult] = await pool.query(`
+        DELETE m FROM merchants m
+        JOIN users u ON m.user_id = u.id
+        WHERE u.email LIKE 'test%@merchant.com'
+      `);
+      console.log(`✅ 已刪除 ${(merchantResult as any).affectedRows} 個商家`);
+    } catch (err) {
+      console.log("⚠️  商家表查詢失敗，繼續");
+    }
 
     // 3. 刪除測試用戶
     console.log("\n👤 刪除測試用戶...");
