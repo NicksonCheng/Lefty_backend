@@ -20,12 +20,16 @@ const UPDATE_MEALBOX_SQL = `
 `;
 
 // search nearby merchants with mealboxes
+// 注意：POINT(經度, 緯度) = POINT(lng, lat)
 const NEARBY_QUERY_SQL = `
     SELECT 
         m.id AS merchant_id,
         m.store_name,
         m.lat, m.lng,
-        ST_Distance_Sphere(m.location, POINT(?, ?)) AS distance_m,
+        ST_Distance_Sphere(
+            m.location,
+            ST_GeomFromText(CONCAT('POINT(', ?, ' ', ?, ')'), 4326)
+        ) AS distance_m,
         JSON_ARRAYAGG(
             JSON_OBJECT(
                 'id', b.id,
@@ -38,7 +42,10 @@ const NEARBY_QUERY_SQL = `
     FROM merchants m
     JOIN mealboxes b ON m.id = b.merchant_id
     WHERE 
-        ST_Distance_Sphere(m.location, POINT(?, ?)) <= ?
+        ST_Distance_Sphere(
+            m.location,
+            ST_GeomFromText(CONCAT('POINT(', ?, ' ', ?, ')'), 4326)
+        ) <= ?
         AND b.is_active = 1
         AND b.quantity > 0
     GROUP BY m.id
@@ -53,16 +60,15 @@ export async function findNearbyMerchants(
   limit: number
 ) {
   // 將參數整理好，避免 API 路由層混亂
-  const params = [lng, lat, lng, lat, radius, limit];
+  // 注意：這個 MySQL 版本中 POINT 的順序需要是 POINT(lat, lng)
+  // 與標準的 POINT(X=lng, Y=lat) 不同，需要反過來
+  const params = [lat, lng, lat, lng, radius, limit];
 
   // 執行查詢
   const [rows] = await pool.query<RowDataPacket[]>(NEARBY_QUERY_SQL, params);
 
-  // 處理 JSON 欄位（如果在資料庫層聚合了）
-  return rows.map((row) => ({
-    ...row,
-    mealboxes: JSON.parse(row.mealboxes),
-  }));
+  // JSON_ARRAYAGG 已經返回 JSON 物件，不需要再 parse
+  return rows;
 }
 
 /**
