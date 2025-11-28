@@ -139,14 +139,16 @@ export async function getNearbyData(
   // 檢查 Cache (業務邏輯)
   const cached = await redis.get(cacheKey);
   if (cached) {
-    return { data: JSON.parse(cached), source: "redis" };
+    // Upstash Redis 會自動解析 JSON，不需要 JSON.parse()
+    return { data: cached, source: "redis" };
   }
 
   // 調用 Repository 層獲取資料 (資料庫操作)
   const data = await findNearbyMerchants(lat, lng, radius, limit);
 
   // 設定 Cache (業務邏輯)
-  await redis.set(cacheKey, JSON.stringify(data), { ex: 30 });
+  // Upstash Redis 會自動序列化 JSON，不需要 JSON.stringify()
+  await redis.set(cacheKey, data, { ex: 30 });
 
   return { data, source: "mysql" };
 }

@@ -107,6 +107,46 @@ services:
         - action: rebuild
           path: ./backend/package.json
 
+  # 測試容器 - 用於生成測試資料和執行效能測試
+  test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    container_name: test_container
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - app_net
+    environment:
+      - NODE_ENV=docker
+      - DB_HOST=mysql
+      - TEST_DB_USER=${TEST_DB_USER}
+      - TEST_DB_PASSWORD=${TEST_DB_PASSWORD}
+      - TEST_DB_NAME=${TEST_DB_NAME}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
+    profiles:
+      - test  # 只有在指定 profile 時才啟動
+    command: >
+      sh -c "
+        echo '============================================================';
+        echo '🧪 選擇要執行的測試:';
+        echo '============================================================';
+        echo '1. 生成測試資料 (setup-test-data)';
+        echo '2. Redis 效能測試 (redis-performance-test)';
+        echo '3. 清除測試資料 (cleanup-test-data)';
+        echo '============================================================';
+        echo '';
+        echo '💡 使用方式:';
+        echo '  docker compose run --rm test npm run test:setup';
+        echo '  docker compose run --rm test npm run test:redis';
+        echo '  docker compose run --rm test npm run test:cleanup';
+        echo '============================================================';
+      "
+
   nginx:
     image: nginx:latest
     container_name: nginx_proxy
