@@ -32,10 +32,13 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+        # 關鍵：設定 localhost alias，讓 service 可用
+        networks:
+          default: {}
 
     env:
       NODE_ENV: test
-      DB_HOST: 127.0.0.1
+      DB_HOST: localhost  # 改為 localhost（而不是 mysql）
       DB_PORT: 3306
       TEST_DB_NAME: Lefty_Test
       TEST_DB_USER: lefty_test_user
@@ -81,7 +84,7 @@ jobs:
         run: |
           echo "Waiting for MySQL to be ready..."
           for i in {1..30}; do
-            if mysqladmin ping -h 127.0.0.1 -P 3306 -u root -proot_password --silent; then
+            if mysqladmin ping -h localhost -u root -proot_password --silent; then
               echo "MySQL is ready!"
               break
             fi
@@ -92,7 +95,7 @@ jobs:
       - name: 🗄️ Initialize Database Schema
         run: |
           echo "Creating database schema..."
-          mysql -h 127.0.0.1 -P 3306 -u root -proot_password Lefty_Test < mysql-init/schema.sql
+          mysql -h localhost -u root -proot_password Lefty_Test < mysql-init/schema.sql
           echo "✅ Database schema created successfully"
 
       - name: 🏪 Setup Test Data (5000 merchants)
