@@ -45,10 +45,13 @@ async function cleanupTestData() {
 
   try {
     // 檢查表是否存在
-    const [tables] = await pool.query(`
+    const [tables] = await pool.query(
+      `
       SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('mealboxes', 'merchants', 'users')
-    `, [process.env.TEST_DB_NAME?.trim() || "Lefty_Test"]);
+    `,
+      [process.env.TEST_DB_NAME?.trim() || "Lefty_Test"]
+    );
 
     if ((tables as any[]).length === 0) {
       console.log("\n⚠️  資料庫表格未建立，跳過清理");

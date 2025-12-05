@@ -89,7 +89,11 @@ export async function insertMealbox(
     product.pickup_time_start,
     product.pickup_time_end,
     product.img_url || null,
+    1, // is_active
   ];
+
+  console.log("DEBUG insertMealbox - product:", product);
+  console.log("DEBUG insertMealbox - params:", params);
 
   const [result] = await pool.query(INSERT_MEALBOX_SQL, params);
   return (result as any).insertId; // 回傳新增的 ID
@@ -103,6 +107,16 @@ export async function updateMealbox(
   productId: number,
   product: any
 ): Promise<number> {
+  // 判斷是否是部分更新（只更新img_url）
+  if (Object.keys(product).length === 1 && product.img_url !== undefined) {
+    // 只更新img_url的情況
+    const sql = `UPDATE mealboxes SET img_url = ? WHERE id = ? AND merchant_id = ?;`;
+    const params = [product.img_url || null, productId, merchantId];
+    const [result] = await pool.query(sql, params);
+    return (result as any).affectedRows;
+  }
+
+  // 全量更新的情況
   const params = [
     product.name,
     product.description || null,

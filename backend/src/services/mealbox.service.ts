@@ -7,6 +7,8 @@ import {
 } from "../repositories/mealbox.repository";
 import { findNearbyMerchants } from "../repositories/mealbox.repository";
 import { redis } from "../utils/upstashRedis";
+import { uploadImageToS3 } from "./image.service";
+
 // 定義回傳給 Controller 的結果類型
 interface ProductResult {
   submitted_name: string;
@@ -14,6 +16,7 @@ interface ProductResult {
   product_id: number | null;
   status: "SUCCESS" | "FAILURE";
   error_reason?: string;
+  image_url?: string; // 新增：上傳的圖片 URL
 }
 
 function validateProduct(product: any): string | null {
@@ -32,22 +35,34 @@ function validateProduct(product: any): string | null {
 type OperationType = "INSERT" | "UPDATE";
 
 /**
- * 處理商家上傳的批次商品列表
+ * 處理商家上傳的批次商品列表（支援圖片上傳）
+ *
+ * @param merchantId - 商家 ID
+ * @param products - 商品陣列，若包含 image_index，將上傳對應索引的圖片到 S3
+ * @param operationType - 操作類型："INSERT" 或 "UPDATE"
+ * @param uploadedFiles - 上傳的圖片檔案陣列（來自 multer）
+ *
+ * 預期格式：
+ * - product.image_index (number，選填)：對應 uploadedFiles 陣列的索引
+ * - uploadedFiles[i].buffer：圖片二進制數據
+ * - uploadedFiles[i].originalname：原始檔名
  */
 export async function handleBatchProductInsert(
   merchantId: number,
   products: any[],
-  operationType: OperationType // <-- 新增此參數
+  operationType: OperationType,
+  uploadedFiles?: Express.Multer.File[]
 ): Promise<{ success: boolean; message: string; results: ProductResult[] }> {
   const results: ProductResult[] = [];
   let successCount = 0;
+  const files = uploadedFiles || [];
 
   for (const product of products) {
     const validationError = validateProduct(product);
     if (validationError) {
       results.push({
         submitted_name: product.name,
-        action: operationType, // 使用當前操作類型
+        action: operationType,
         product_id: product.product_id || null,
         status: "FAILURE",
         error_reason: validationError,
@@ -97,14 +112,82 @@ export async function handleBatchProductInsert(
           );
         }
 
-        const newId = await insertMealbox(merchantId, product);
-        results.push({
-          submitted_name: product.name,
-          action: "INSERT",
-          product_id: newId,
-          status: "SUCCESS",
-        });
-        successCount++;
+        // 【新增】如果有圖片索引且提供了檔案，進行上傳
+        let imageUrl: string | undefined;
+        if (
+          product.image_index !== undefined &&
+          product.image_index >= 0 &&
+          product.image_index < files.length
+        ) {
+          try {
+            console.log(
+              `DEBUG: Processing product with image - index ${product.image_index}, product:`,
+              JSON.stringify(product)
+            );
+            const file = files[product.image_index];
+            // 先執行資料庫插入取得 product_id
+            const newId = await insertMealbox(merchantId, product);
+            console.log(`DEBUG: Inserted product ID: ${newId}`);
+
+            // 再上傳圖片，使用新的 product_id 作為 mealbox_id
+            const uploadResult = await uploadImageToS3(
+              file.buffer,
+              merchantId.toString(),
+              newId.toString(),
+              file.originalname
+            );
+            console.log(`DEBUG: Upload result:`, uploadResult);
+
+            imageUrl = uploadResult.imageUrl;
+            // 更新商品記錄以儲存圖片 URL
+            await updateMealbox(merchantId, newId, { img_url: imageUrl });
+
+            results.push({
+              submitted_name: product.name,
+              action: "INSERT",
+              product_id: newId,
+              status: "SUCCESS",
+              image_url: imageUrl, // 包含圖片 URL 在結果中
+            });
+            successCount++;
+          } catch (imageError) {
+            console.error(
+              `Failed to process product with image ${product.name}: ${
+                (imageError as Error).message
+              }`,
+              imageError
+            );
+            results.push({
+              submitted_name: product.name,
+              action: "INSERT",
+              product_id: null,
+              status: "FAILURE",
+              error_reason: `Product insertion with image upload failed: ${
+                (imageError as Error).message
+              }`,
+            });
+          }
+        } else {
+          // 沒有圖片或索引無效，直接插入
+          try {
+            const newId = await insertMealbox(merchantId, product);
+            results.push({
+              submitted_name: product.name,
+              action: "INSERT",
+              product_id: newId,
+              status: "SUCCESS",
+            });
+            successCount++;
+          } catch (dbError) {
+            results.push({
+              submitted_name: product.name,
+              action: "INSERT",
+              product_id: null,
+              status: "FAILURE",
+              error_reason: `Database error: ${(dbError as Error).message}`,
+            });
+          }
+        }
       }
     } catch (dbError) {
       // 捕獲資料庫層級的錯誤

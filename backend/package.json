@@ -7,11 +7,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
     "@upstash/redis": "^1.35.6",
+    "axios": "^1.6.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "form-data": "^4.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^7.0.0",
     "mongoose": "^8.19.3",
@@ -34,7 +36,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:setup": "ts-node tests/setup-test-data.ts",
     "test:redis": "ts-node tests/redis-performance-test.ts",
-    "test:cleanup": "ts-node tests/cleanup-test-data.ts"
+    "test:cleanup": "ts-node tests/cleanup-test-data.ts",
+    "test:s3": "ts-node tests/test-s3-upload.ts"
   },
   "keywords": [],
   "author": "",
