@@ -43,6 +43,47 @@ function generateS3Key(
 }
 
 /**
+ * Generate presigned URL for frontend to upload image to S3
+ */
+export async function generatePresignedUploadUrl(
+  merchantId: string,
+  mealboxId: string,
+  fileName: string
+): Promise<{
+  presignedUrl: string;
+  s3Key: string;
+}> {
+  try {
+    const s3Key = generateS3Key(merchantId, mealboxId, fileName);
+
+    const command = new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: s3Key,
+      CacheControl: "max-age=31536000,public",
+      Metadata: {
+        "merchant-id": merchantId,
+        "mealbox-id": mealboxId,
+        "upload-timestamp": new Date().toISOString(),
+      },
+    });
+
+    const presignedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 3600, // 1 hour
+    });
+
+    console.log(`Generated presigned URL for ${s3Key}`);
+
+    return {
+      presignedUrl,
+      s3Key,
+    };
+  } catch (error) {
+    console.error(`Error generating presigned URL:`, error);
+    throw new Error(`Failed to generate presigned URL: ${error}`);
+  }
+}
+
+/**
  * Upload image to S3
  * Returns the S3 key and a signed URL (24 hours)
  * Frontend can use the s3Key to generate long-lived signed URLs
@@ -99,11 +140,11 @@ export async function uploadImageToS3(
 
 /**
  * Generate a signed URL for accessing an image in S3
- * Use this to generate new signed URLs when the old one expires
+ * Default expiration: 10 years (essentially permanent)
  */
 export async function generateSignedUrlForImage(
   s3Key: string,
-  expiresIn: number = 86400 // Default: 24 hours
+  expiresIn: number = 315360000 // Default: 10 years (in seconds)
 ): Promise<string> {
   try {
     const command = new GetObjectCommand({
