@@ -1,0 +1,8 @@
+# 排除所有 node_modules — macOS 的二進位在 Linux 容器內無法執行 (ETXTBSY)
+# act 會忽略這些目錄，容器內改由 npm ci 重新安裝 Linux 版本的依賴
+node_modules
+**/node_modules
+
+# 排除其他不需要進容器的檔案
+.git
+*.log

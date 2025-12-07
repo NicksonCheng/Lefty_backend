@@ -1,14 +1,20 @@
-import { Redis } from "@upstash/redis";
+/**
+ * upstashRedis.ts — backward-compatibility shim
+ *
+ * All existing code that does:
+ *   import { redis } from "../utils/upstashRedis"
+ * continues to work unchanged, but now routes through RedisClientManager
+ * with automatic failover and circuit-breaker logic.
+ */
+import { redisManager } from "./redisClientManager";
 
-export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+/** Drop-in replacement for the old UpstashRedis instance. */
+export const redis = redisManager;
 
-// 加上簡單的健康檢查（可選）
-export const isRedisHealthy = async () => {
+/** Legacy health-check helper — still works. */
+export const isRedisHealthy = async (): Promise<boolean> => {
   try {
-    await redis.ping();
+    await redisManager.ping();
     return true;
   } catch {
     return false;

@@ -1,0 +1,100 @@
+name: Backend_Tests
+
+on:
+  push:
+    branches: ["main", "master", "ci/cd"]
+  pull_request:
+    branches: ["main", "master", "ci/cd"]
+  workflow_dispatch:
+
+jobs:
+  # ─── Stage 1: Static Analysis ─────────────────────────────────────────────
+  # Typescript type check, ESLint, npm audit scan (high severity)
+  static-analysis:
+    name: "Stage 1 — Static Analysis"
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Audit dependencies (high severity)
+        run: npm audit --audit-level=high
+        continue-on-error: true # 警告但不 block pipeline
+
+  # ─── Stage 2: Unit Tests ───────────────────────────────────────────────────
+  # 執行 Jest 單元測試，使用 mock 環境變數避免連線外部服務
+  unit-tests:
+    name: "Stage 2 — Unit Tests"
+    runs-on: self-hosted
+    needs: static-analysis
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Jest tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          # 測試環境不需要真實 Redis/DB 連線
+          UPSTASH_REDIS_REST_URL: "http://mock"
+          UPSTASH_REDIS_REST_TOKEN: "mock_token"
+          LOCAL_REDIS_HOST: "localhost"
+          LOCAL_REDIS_PORT: "6379"
+
+  # ─── Stage 3: Build Verification ──────────────────────────────────────────
+  # 確認 Docker Compose 配置正確，並嘗試構建所有服務的 Docker 映像（不使用快取）
+  build-check:
+    name: "Stage 3 — Build Verification"
+    runs-on: self-hosted
+    needs: unit-tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create stub .env for config validation
+        run: |
+          cat > .env << 'EOF'
+          MYSQL_ROOT_PASSWORD=stub
+          DB_HOST=mysql
+          DB_PORT=3306
+          DB_USER=stub
+          DB_PASSWORD=stub
+          DB_NAME=stub
+          TEST_DB_USER=stub
+          TEST_DB_PASSWORD=stub
+          TEST_DB_NAME=stub
+          UPSTASH_REDIS_REST_URL=http://stub
+          UPSTASH_REDIS_REST_TOKEN=stub
+          LOCAL_REDIS_HOST=redis
+          LOCAL_REDIS_PORT=6379
+          EOF
+
+      - name: Verify Docker Compose config
+        run: docker compose config --quiet
+
+      - name: Build Docker images (no cache)
+        run: docker compose build --no-cache
+        timeout-minutes: 10

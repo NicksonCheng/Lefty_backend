@@ -7,7 +7,7 @@
  */
 
 import mysql from "mysql2/promise";
-import { redis } from "../src/utils/upstashRedis";
+import { redisManager as redis } from "../src/utils/redisClientManager";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -19,7 +19,7 @@ const dbHost = isDocker ? "mysql" : "localhost";
 
 console.log(`🔌 資料庫連線: ${dbHost}:3306`);
 console.log(
-  `📊 資料庫名稱: ${process.env.TEST_DB_NAME?.trim() || "Lefty_Test"}`
+  `📊 資料庫名稱: ${process.env.TEST_DB_NAME?.trim() || "Lefty_Test"}`,
 );
 console.log(`👤 資料庫用戶: ${process.env.TEST_DB_USER || "root"}`);
 
@@ -58,7 +58,7 @@ async function queryWithoutRedis(
   lat: number,
   lng: number,
   radius: number,
-  limit: number = 200 // 增加到 200 筆以展現 Redis 優勢
+  limit: number = 200, // 增加到 200 筆以展現 Redis 優勢
 ) {
   const sql = `
     SELECT 
@@ -104,14 +104,13 @@ async function queryWithRedis(
   lat: number,
   lng: number,
   radius: number,
-  limit: number = 200 // 增加到 200 筆以展現 Redis 優勢
+  limit: number = 200, // 增加到 200 筆以展現 Redis 優勢
 ) {
   const cacheKey = `nearby:${lat}:${lng}:${radius}:${limit}`;
 
   // 檢查快取
   const cached = await redis.get(cacheKey);
   if (cached) {
-    // Upstash Redis 會自動解析 JSON，不需要 JSON.parse()
     return cached;
   }
 
@@ -119,7 +118,6 @@ async function queryWithRedis(
   const results = await queryWithoutRedis(lat, lng, radius, limit);
 
   // 儲存到快取（30秒）
-  // Upstash Redis 會自動序列化 JSON，不需要 JSON.stringify()
   await redis.set(cacheKey, results, { ex: 30 });
 
   return results;
@@ -132,7 +130,7 @@ async function clearRedisCache(
   lat: number,
   lng: number,
   radius: number,
-  limit: number = 50
+  limit: number = 50,
 ) {
   const cacheKey = `nearby:${lat}:${lng}:${radius}:${limit}`;
   await redis.del(cacheKey);
@@ -145,7 +143,7 @@ async function runPerformanceTest(
   lat: number,
   lng: number,
   radius: number,
-  rounds: number = 3
+  rounds: number = 3,
 ): Promise<PerformanceResult> {
   console.log(`\n${"=".repeat(80)}`);
   console.log(`📊 測試範圍: ${radius / 1000} km (${radius} m)`);
@@ -183,7 +181,7 @@ async function runPerformanceTest(
   console.log(
     `      耗時: ${redisFirstTime} ms (${
       (redisFirstResult as any[]).length
-    } 筆結果)`
+    } 筆結果)`,
   );
 
   // 第二次查詢（讀取快取）
@@ -194,7 +192,7 @@ async function runPerformanceTest(
   console.log(
     `      耗時: ${redisCachedTime} ms (${
       (redisCachedResult as any[]).length
-    } 筆結果)`
+    } 筆結果)`,
   );
 
   // 計算加速比
@@ -231,7 +229,7 @@ function displaySummary(results: PerformanceResult[]) {
 
   // 表頭
   console.log(
-    "範圍(km) | 資料量 | 無快取(ms) | 有快取-首次(ms) | 有快取-快取(ms) | 加速倍數"
+    "範圍(km) | 資料量 | 無快取(ms) | 有快取-首次(ms) | 有快取-快取(ms) | 加速倍數",
   );
   console.log("-".repeat(80));
 
@@ -246,8 +244,8 @@ function displaySummary(results: PerformanceResult[]) {
 
     console.log(
       `${radiusKm.padStart(
-        8
-      )} | ${count} | ${noCache} | ${firstCache} | ${cached} | ${speedup}`
+        8,
+      )} | ${count} | ${noCache} | ${firstCache} | ${cached} | ${speedup}`,
     );
   });
 
@@ -256,22 +254,22 @@ function displaySummary(results: PerformanceResult[]) {
   results.forEach((r) => {
     console.log(
       `   - ${(r.radius / 1000).toFixed(
-        1
+        1,
       )}km 範圍: Redis 快取加速 ${r.withRedis.speedup.toFixed(2)}x (${
         r.withoutRedis.resultCount
-      } 筆資料)`
+      } 筆資料)`,
     );
   });
 
   // 找出最大加速比
   const maxSpeedup = Math.max(...results.map((r) => r.withRedis.speedup));
   const maxSpeedupResult = results.find(
-    (r) => r.withRedis.speedup === maxSpeedup
+    (r) => r.withRedis.speedup === maxSpeedup,
   );
   console.log(
     `\n🏆 最佳加速效果: ${(maxSpeedupResult!.radius / 1000).toFixed(
-      1
-    )}km 範圍，加速 ${maxSpeedup.toFixed(2)} 倍`
+      1,
+    )}km 範圍，加速 ${maxSpeedup.toFixed(2)} 倍`,
   );
 }
 

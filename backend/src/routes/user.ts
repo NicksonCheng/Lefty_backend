@@ -2,7 +2,6 @@ import { Router, Request, Response } from "express";
 import pool from "../db";
 import { RowDataPacket } from "mysql2";
 import { authenticateToken } from "../middleware/auth";
-import { getNearbyData } from "../services/mealbox.service";
 import { MealBox, User } from "../interface";
 
 const router = Router();
@@ -22,45 +21,41 @@ const generateCacheKey = (lat: number, lng: number, radiusKm = 3) => {
  * Get current user's profile information
  * Requires: Authentication token
  */
-router.get(
-  "/profile",
-  authenticateToken,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const [users] = await pool.query<User[]>(
-        "SELECT * FROM users WHERE id = ?",
-        [req.user.id]
-      );
+router.get("/profile", async (req: AuthRequest, res: Response) => {
+  try {
+    const [users] = await pool.query<User[]>(
+      "SELECT * FROM users WHERE id = ?",
+      [req.user.id],
+    );
 
-      if (users.length === 0) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      const userData = {
-        id: users[0].id,
-        email: users[0].email,
-        name: users[0].name,
-        role: users[0].role,
-      };
-
-      // If user is merchant, get merchant_id
-      if (users[0].role === 'merchant') {
-        const [merchants] = await pool.query<RowDataPacket[]>(
-          "SELECT id FROM merchants WHERE user_id = ?",
-          [users[0].id]
-        );
-        if (merchants.length > 0) {
-          (userData as any).merchant_id = merchants[0].id;
-        }
-      }
-
-      res.status(200).json(userData);
-    } catch (error) {
-      console.error("Profile error:", error);
-      res.status(500).json({ error: "Internal server error" });
+    if (users.length === 0) {
+      return res.status(404).json({ error: "User not found" });
     }
+
+    const userData = {
+      id: users[0].id,
+      email: users[0].email,
+      name: users[0].name,
+      role: users[0].role,
+    };
+
+    // If user is merchant, get merchant_id
+    if (users[0].role === "merchant") {
+      const [merchants] = await pool.query<RowDataPacket[]>(
+        "SELECT id FROM merchants WHERE user_id = ?",
+        [users[0].id],
+      );
+      if (merchants.length > 0) {
+        (userData as any).merchant_id = merchants[0].id;
+      }
+    }
+
+    res.status(200).json(userData);
+  } catch (error) {
+    console.error("Profile error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-);
+});
 /**
  * GET /nearby
  * @summary Search nearby mealbox from users location
@@ -107,38 +102,4 @@ router.get(
       ]
     },
  */
-router.get("/nearby", async (req: Request, res: Response) => {
-  try {
-    const startTime = Date.now();
-    const lat = parseFloat(req.query.lat as string);
-    const lng = parseFloat(req.query.lng as string);
-    const radius = parseInt((req.query.radius as string) || "3000");
-    const limit = parseInt((req.query.limit as string) || "50");
-
-    if (!lat || !lng) {
-      return res
-        .status(400)
-        .json({ success: false, error: "lat & lng required" });
-    }
-
-    // 🌟 只需要調用 Service 層，完全沒有 SQL 程式碼
-    const { data, source } = await getNearbyData(lat, lng, radius, limit);
-
-    console.log(
-      `${source} ${source === "redis" ? "HIT" : "MISS"}! ${
-        Date.now() - startTime
-      }ms`
-    );
-
-    res.status(200).json({
-      success: true,
-      data: data,
-      source: source,
-      timeMs: Date.now() - startTime,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: "Internal Server Error" });
-  }
-});
 export default router;

@@ -7,6 +7,7 @@ dotenv.config();
 const is_dev = process.env.NODE_ENV === "development";
 const pool = mysql.createPool({
   host: process.env.DB_HOST || "mysql",
+  port: Number(process.env.DB_PORT) || 3306,
   user: is_dev ? process.env.DB_USER : process.env.TEST_DB_USER,
   password: is_dev ? process.env.DB_PASSWORD : process.env.TEST_DB_PASSWORD,
   database: is_dev ? process.env.DB_NAME : process.env.TEST_DB_NAME,

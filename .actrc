@@ -1,0 +1,4 @@
+# node:20-alpine 沒有 bash，改用 catthehacker/ubuntu 這個 act 專用 image
+# 內建 bash / git / docker CLI / node，是 act 官方推薦的 self-hosted runner image
+--container-architecture linux/amd64
+-P self-hosted=catthehacker/ubuntu:act-22.04

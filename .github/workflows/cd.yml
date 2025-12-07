@@ -1,0 +1,108 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Backend_Tests"]
+    types: [completed]
+    branches: ["main", "master", "ci/cd"] # 明確指定分支
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    # 修改條件：允許 workflow_run，但要求它成功
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+
+    steps:
+      - name: 部署狀態檢查
+        run: |
+          echo "觸發事件: ${{ github.event_name }}"
+          echo "工作流程名稱: ${{ github.workflow }}"
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "前置工作流程結論: ${{ github.event.workflow_run.conclusion }}"
+            echo "前置工作流程分支: ${{ github.event.workflow_run.head_branch }}"
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create .env file
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            # GitHub Actions：從 Secret 寫入 .env
+            echo "${{ secrets.ENV_FILE }}" > .env
+            echo "✅ .env 已從 GitHub Secret 建立"
+          elif [ -f ".env" ]; then
+            # 本地 act 測試：直接使用現有的 .env
+            echo "✅ 使用現有本地 .env 檔案"
+          else
+            echo "❌ 找不到 .env 設定（GitHub Secret ENV_FILE 未設定且本地無 .env）"
+            exit 1
+          fi
+
+      - name: Docker Compose 重啟
+        run: |
+          echo "🚀 開始部署..."
+
+          docker rm -f mysql_db redis_local backend_app_1 backend_app_2 backend_app_3 nginx_proxy || true
+          docker compose down --remove-orphans
+          docker compose up -d --build
+          docker image prune -f
+
+          echo "✨ 部署完成 $(date)"
+
+      # ── Post-Deploy Smoke Tests ────────────────────────────────────────────
+      - name: Wait for services to be healthy
+        run: |
+          echo "⏳ 等待服務啟動..."
+          MAX_ATTEMPTS=18  # 18 * 5s = 90s
+          ATTEMPT=0
+          until [ $ATTEMPT -ge $MAX_ATTEMPTS ]; do
+            if curl -sf http://localhost/health > /dev/null 2>&1; then
+              echo "✅ 服務已就緒"
+              exit 0
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "  嘗試 $ATTEMPT/$MAX_ATTEMPTS，等待 5 秒..."
+            sleep 5
+          done
+          echo "❌ 服務啟動超時（超過 90 秒）"
+          exit 1
+
+      - name: Smoke test — Health endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/health)
+          echo "Health check HTTP status: $STATUS"
+          [ "$STATUS" = "200" ] || (echo "❌ Health check 失敗" && exit 1)
+          echo "✅ Health check 通過"
+
+      - name: Smoke test — /nearby API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "http://localhost/nearby?lat=25.033&lng=121.565&radius=3000")
+          echo "/nearby HTTP status: $STATUS"
+          [ "$STATUS" = "200" ] || (echo "❌ /nearby API 失敗" && exit 1)
+          echo "✅ /nearby API 通過"
+
+      - name: Smoke test — Redis circuit state
+        run: |
+          RESP=$(curl -s http://localhost/health/redis || echo "{}")
+          echo "Redis circuit state: $RESP"
+          echo "$RESP" | grep -q '"activeClient"' || \
+            (echo "❌ Redis health endpoint 異常" && exit 1)
+          echo "✅ Redis health endpoint 通過"
+
+      - name: Verify all containers are running
+        run: |
+          echo "🔍 檢查容器狀態..."
+          FAILED=0
+          for container in mysql_db redis_local backend_app_1 backend_app_2 backend_app_3 nginx_proxy; do
+            STATUS=$(docker inspect --format='{{.State.Status}}' $container 2>/dev/null || echo "missing")
+            echo "  $container → $STATUS"
+            [ "$STATUS" = "running" ] || { echo "  ❌ $container 未正常運行"; FAILED=1; }
+          done
+          [ "$FAILED" = "0" ] && echo "✅ 所有容器正常" || exit 1
