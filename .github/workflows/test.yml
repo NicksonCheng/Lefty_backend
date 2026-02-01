@@ -10,55 +10,49 @@ on:
     branches: [ master, main, develop ]
     paths:
       - 'backend/**'
-  workflow_dispatch: # 允許手動觸發
+  workflow_dispatch:
 
 jobs:
   test:
     name: Run Backend Tests
-    runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: root_password
-          MYSQL_DATABASE: Lefty_Test
-          MYSQL_USER: lefty_test_user
-          MYSQL_PASSWORD: "123456"
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+    runs-on: self-hosted
 
     env:
       NODE_ENV: test
-      DB_HOST: localhost  # 改為 localhost（而不是 mysql）
-      DB_PORT: 3306
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3307        # Use 3307 to avoid conflict with local dev/prod MySQL (usually 3306)
       TEST_DB_NAME: Lefty_Test
       TEST_DB_USER: lefty_test_user
       TEST_DB_PASSWORD: "123456"
-      # UPSTASH credentials will be loaded from the ENV_FILE secret at runtime
 
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
+      - name: 🐳 Start Test Database
+        run: |
+          echo "Starting isolated MySQL container for testing..."
+          # Clean up any leftover container from previous aborted runs
+          docker rm -f lefty_test_db || true
+          
+          # Run MySQL on port 3307
+          docker run -d \
+            --name lefty_test_db \
+            -p 3307:3306 \
+            -e MYSQL_ROOT_PASSWORD=root_password \
+            -e MYSQL_DATABASE=Lefty_Test \
+            mysql:8
+
       - name: 🧾 Load ENV_FILE secret and export to environment
         shell: bash
         run: |
           echo "Writing ENV_FILE secret to .env"
-          # Write the ENV_FILE secret contents to .env
           echo "${{ secrets.ENV_FILE }}" > .env
 
-          # Load .env into the current shell and export variables to GITHUB_ENV
           set -o allexport
           source .env || true
           set +o allexport
 
-          # Ensure Upstash variables (if present) are available to subsequent steps
           if [[ -n "${UPSTASH_REDIS_REST_URL:-}" ]]; then
             echo "UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}" >> $GITHUB_ENV
           fi
@@ -79,13 +73,26 @@ jobs:
 
       - name: ⏳ Wait for MySQL
         run: |
-          echo "Waiting for MySQL to be ready..."
+          echo "Waiting for MySQL to be ready on port 3307..."
+          
+          # Wait for TCP port 3307
           for i in {1..30}; do
-            if mysqladmin ping -h localhost -u root -proot_password --silent; then
+            if nc -z 127.0.0.1 3307; then
+              echo "TCP Port 3307 is open!"
+              break
+            fi
+            echo "Waiting for TCP port... ($i/30)"
+            sleep 2
+          done
+
+          # Wait for MySQL service
+          for i in {1..30}; do
+            # Note: -P 3307 added
+            if mysqladmin ping -h 127.0.0.1 -P 3307 -u root -proot_password --silent; then
               echo "MySQL is ready!"
               break
             fi
-            echo "Waiting... ($i/30)"
+            echo "Waiting for MySQL service... ($i/30)"
             sleep 2
           done
           
@@ -93,34 +100,30 @@ jobs:
         run: |
           echo "Creating database and schema..."
           
-          # 1. 建立資料庫用戶（防止已存在錯誤）
-          mysql -h localhost -u root -proot_password -e "
+          # All mysql commands must use -P 3307
+          MYSQL_CMD="mysql -h 127.0.0.1 -P 3307 -u root -proot_password"
+
+          $MYSQL_CMD -e "
             CREATE USER IF NOT EXISTS 'lefty_test_user'@'%' IDENTIFIED BY '123456';
             GRANT ALL PRIVILEGES ON Lefty_Test.* TO 'lefty_test_user'@'%';
             FLUSH PRIVILEGES;
           " || true
           
-          # 2. 建立資料庫
-          mysql -h localhost -u root -proot_password -e "CREATE DATABASE IF NOT EXISTS Lefty_Test;"
+          $MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS Lefty_Test;"
           
-          # 3. 執行 schema.sql 建立表
-          mysql -h localhost -u root -proot_password Lefty_Test < mysql-init/schema.sql
+          $MYSQL_CMD Lefty_Test < mysql-init/schema.sql
           
           echo "✅ Database and schema created successfully"
           
       - name: 🔍 Verify Database Schema
         run: |
+          MYSQL_CMD="mysql -h 127.0.0.1 -P 3307 -u root -proot_password Lefty_Test"
+          
           echo "驗證資料庫表格..."
-          mysql -h localhost -u root -proot_password Lefty_Test -e "SHOW TABLES;"
+          $MYSQL_CMD -e "SHOW TABLES;"
           echo ""
           echo "驗證 users 表結構..."
-          mysql -h localhost -u root -proot_password Lefty_Test -e "DESCRIBE users;"
-          echo ""
-          echo "驗證 merchants 表結構..."
-          mysql -h localhost -u root -proot_password Lefty_Test -e "DESCRIBE merchants;"
-          echo ""
-          echo "驗證 mealboxes 表結構..."
-          mysql -h localhost -u root -proot_password Lefty_Test -e "DESCRIBE mealboxes;"
+          $MYSQL_CMD -e "DESCRIBE users;"
 
       - name: 🏪 Setup Test Data (5000 merchants)
         working-directory: ./backend
@@ -140,32 +143,14 @@ jobs:
           npm run test:redis
         timeout-minutes: 5
 
-      - name: 📊 Display Test Summary
-        if: success()
-        run: |
-          echo "=================================="
-          echo "✅ 測試完成摘要"
-          echo "=================================="
-          echo "- 商家數量: 5000"
-          echo "- 餐盒數量: 25000"
-          echo "- Redis 測試範圍: 3km, 5km, 10km, 15km, 20km"
-          echo "=================================="
-
       - name: 🧹 Cleanup Test Data
-        working-directory: ./backend
-        if: always() # 即使測試失敗也要清理
+        if: always()
         run: |
           echo "=================================="
-          echo "🗑️ 清理測試資料"
+          echo "🗑️ 清理測試資料與容器"
           echo "=================================="
-          npm run test:cleanup || echo "Cleanup completed with warnings"
-
-      - name: 📈 Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: |
-            backend/tests/*.log
-          retention-days: 7
-          if-no-files-found: ignore
+          # Attempt to run the cleanup script (optional, as we destroy the container anyway)
+          cd backend && npm run test:cleanup || echo "Cleanup script warning"
+          
+          # Force remove the test container
+          docker rm -f lefty_test_db || true
