@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - main
+      - ci/cd
   workflow_dispatch:
 
 jobs:
@@ -23,6 +24,9 @@ jobs:
 
       - name: Docker Compose 重啟
         run: |
+          # 強制移除已存在的容器以避免名稱衝突
+          docker rm -f mysql_db backend_app_1 backend_app_2 backend_app_3 nginx_proxy || true
+          
           docker compose down --remove-orphans
           docker compose up -d --build
           docker image prune -f

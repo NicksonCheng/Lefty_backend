@@ -2,7 +2,7 @@ name: Backend Tests
 
 on:
   push:
-    branches: [ master, main, develop ]
+    branches: [ master, main, develop, ci/cd ]
     paths:
       - 'backend/**'
       - '.github/workflows/test.yml'
@@ -32,9 +32,6 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-        # 關鍵：設定 localhost alias，讓 service 可用
-        networks:
-          default: {}
 
     env:
       NODE_ENV: test
