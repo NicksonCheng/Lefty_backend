@@ -9,7 +9,7 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && contains(fromJson('["main", "master", "ci/cd"]'), github.event.workflow_run.head_branch)) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
     
     steps:
       - name: 部署狀態檢查
