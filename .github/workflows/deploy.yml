@@ -8,6 +8,7 @@ on:
     branches:
       - master
       - main
+      - ci/cd
   workflow_dispatch:
 
 jobs:
