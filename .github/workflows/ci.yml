@@ -34,10 +34,3 @@ jobs:
 
     - name: Run Tests
       run: npm test
-
-    - name: Trigger Deploy Workflow
-      if: success() && github.event_name == 'push'
-      run: |
-        gh workflow run cd.yml --ref ${{ github.ref }}
-      env:
-        GH_TOKEN: ${{ github.token }}

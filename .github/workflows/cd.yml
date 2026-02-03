@@ -4,12 +4,16 @@ on:
   workflow_run:
     workflows: ["Backend Tests"]
     types: [completed]
+    branches: [main, master, ci/cd]  # 明確指定分支
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: self-hosted
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
+    # 修改條件：允許 workflow_run，但要求它成功
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     
     steps:
       - name: 部署狀態檢查
@@ -18,6 +22,7 @@ jobs:
           echo "工作流程名稱: ${{ github.workflow }}"
           if [ "${{ github.event_name }}" == "workflow_run" ]; then
             echo "前置工作流程結論: ${{ github.event.workflow_run.conclusion }}"
+            echo "前置工作流程分支: ${{ github.event.workflow_run.head_branch }}"
           fi
 
       - name: Checkout code
@@ -33,16 +38,9 @@ jobs:
         run: |
           echo "🚀 開始部署..."
           
-          # 強制移除已存在的容器以避免名稱衝突
           docker rm -f mysql_db backend_app_1 backend_app_2 backend_app_3 nginx_proxy || true
-          
-          # 停止並移除舊的容器網路
           docker compose down --remove-orphans
-          
-          # 重新建置並啟動
           docker compose up -d --build
-          
-          # 清理懸空的 Docker 映像檔
           docker image prune -f
           
           echo "✨ 部署完成 $(date)"
