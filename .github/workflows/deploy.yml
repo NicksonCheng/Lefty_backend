@@ -5,10 +5,6 @@ on:
     workflows: ["Backend Tests"]
     types:
       - completed
-    branches:
-      - master
-      - main
-      - ci/cd
   workflow_dispatch:
 
 jobs:
@@ -18,6 +14,15 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     
     steps:
+      - name: 部署狀態檢查
+        run: |
+          echo "觸發事件: ${{ github.event_name }}"
+          echo "工作流程名稱: ${{ github.workflow }}"
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "前置工作流程結論: ${{ github.event.workflow_run.conclusion }}"
+            echo "前置工作流程 ID: ${{ github.event.workflow_run.id }}"
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
