@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
+  # CI
   test:
     runs-on: ubuntu-latest
 
@@ -37,6 +38,7 @@ jobs:
       # running 'npm test' is sufficient and safe.
       run: npm test
 
+  # CD
   deploy:
     runs-on: self-hosted
     needs: test
