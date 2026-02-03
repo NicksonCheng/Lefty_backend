@@ -3,8 +3,8 @@ name: Deploy
 on:
   workflow_run:
     workflows: ["Backend Tests"]
-    types:
-      - completed
+    types: [completed]
+    branches: ["main", "master", "ci/cd"] # 確保包含你的開發分支
   workflow_dispatch:
 
 jobs:
