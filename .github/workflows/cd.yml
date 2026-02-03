@@ -1,55 +1,25 @@
-name: CI/CD Pipeline
+name: Deploy
 
 on:
-  push:
-    branches: [ "main", "master", "ci/cd" ]
-  pull_request:
-    branches: [ "main", "master", "ci/cd" ]
+  workflow_run:
+    workflows: ["Backend Tests"]
+    types:
+      - completed
   workflow_dispatch:
 
 jobs:
-  # CI
-  test:
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: backend/package-lock.json
-
-    - name: Install dependencies
-      run: npm ci
-
-    - name: Run Linter
-      run: npm run lint
-
-    - name: Run Tests
-      # Since jest.config.js matches **/*.test.ts, and only health.test.ts matches, 
-      # running 'npm test' is sufficient and safe.
-      run: npm test
-
-  # CD
   deploy:
     runs-on: self-hosted
-    needs: test
-    if: success()
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     
     steps:
       - name: 部署狀態檢查
         run: |
           echo "觸發事件: ${{ github.event_name }}"
           echo "工作流程名稱: ${{ github.workflow }}"
-          echo "前置 job (test) 狀態: 成功"
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "前置工作流程結論: ${{ github.event.workflow_run.conclusion }}"
+          fi
 
       - name: Checkout code
         uses: actions/checkout@v4
