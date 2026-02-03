@@ -2,9 +2,9 @@ name: Deploy
 
 on:
   workflow_run:
-    workflows: ["Backend Tests"]
+    workflows: ["Backend_Tests"]
     types: [completed]
-    branches: [main, master, ci/cd]  # 明確指定分支
+    branches: [ "main", "master", "ci/cd" ]  # 明確指定分支
   workflow_dispatch:
 
 jobs:
