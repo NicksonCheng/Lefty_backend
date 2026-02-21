@@ -48,6 +48,7 @@
   },
   "scripts": {
     "test": "jest",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/**/*.ts tests/**/*.ts",
     "test:setup": "ts-node tests/setup-test-data.ts",
     "test:redis": "ts-node tests/redis-performance-test.ts",

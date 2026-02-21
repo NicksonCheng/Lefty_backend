@@ -3,3 +3,4 @@ actions-runner/
 node_modules/
 .env
 .DS_Store
+.secrets
