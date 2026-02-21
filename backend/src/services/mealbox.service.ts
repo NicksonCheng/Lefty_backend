@@ -6,7 +6,7 @@ import {
   updateMealbox,
 } from "../repositories/mealbox.repository";
 import { findNearbyMerchants } from "../repositories/mealbox.repository";
-import { redis } from "../utils/upstashRedis";
+import { redisManager as redis } from "../utils/redisClientManager";
 import { uploadImageToS3 } from "./image.service";
 
 // 定義回傳給 Controller 的結果類型
@@ -51,7 +51,7 @@ export async function handleBatchProductInsert(
   merchantId: number,
   products: any[],
   operationType: OperationType,
-  uploadedFiles?: Express.Multer.File[]
+  uploadedFiles?: Express.Multer.File[],
 ): Promise<{ success: boolean; message: string; results: ProductResult[] }> {
   const results: ProductResult[] = [];
   let successCount = 0;
@@ -89,7 +89,7 @@ export async function handleBatchProductInsert(
         const affectedRows = await updateMealbox(
           merchantId,
           product.product_id,
-          product
+          product,
         );
 
         results.push({
@@ -108,7 +108,7 @@ export async function handleBatchProductInsert(
         if (product.product_id) {
           // 在 POST 路由中，如果誤傳 product_id，則可能被視為錯誤或直接忽略
           console.warn(
-            `Ignoring product_id for POST INSERT operation: ${product.product_id}`
+            `Ignoring product_id for POST INSERT operation: ${product.product_id}`,
           );
         }
 
@@ -122,7 +122,7 @@ export async function handleBatchProductInsert(
           try {
             console.log(
               `DEBUG: Processing product with image - index ${product.image_index}, product:`,
-              JSON.stringify(product)
+              JSON.stringify(product),
             );
             const file = files[product.image_index];
             // 先執行資料庫插入取得 product_id
@@ -134,7 +134,7 @@ export async function handleBatchProductInsert(
               file.buffer,
               merchantId.toString(),
               newId.toString(),
-              file.originalname
+              file.originalname,
             );
             console.log(`DEBUG: Upload result:`, uploadResult);
 
@@ -155,7 +155,7 @@ export async function handleBatchProductInsert(
               `Failed to process product with image ${product.name}: ${
                 (imageError as Error).message
               }`,
-              imageError
+              imageError,
             );
             results.push({
               submitted_name: product.name,
@@ -215,7 +215,7 @@ export async function getNearbyData(
   lat: number,
   lng: number,
   radius: number,
-  limit: number
+  limit: number,
 ) {
   const cacheKey = `nearby:${lat}:${lng}:${radius}:${limit}`;
 
