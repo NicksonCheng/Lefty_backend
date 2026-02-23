@@ -12,6 +12,8 @@ jobs:
   # Typescript type check, ESLint, npm audit scan (high severity)
   static-analysis:
     name: "Stage 1 — Static Analysis"
+
+    # runs-on self-hosted runner
     runs-on: self-hosted
 
     defaults:
@@ -19,12 +21,15 @@ jobs:
         working-directory: ./backend
 
     steps:
+      # take github code into runner environment
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # install dependencies and run static checks
       - name: Install dependencies
         run: npm ci
 
+      # 執行 TypeScript 類型檢查、ESLint 和 npm audit
       - name: TypeScript type check
         run: npm run typecheck
 

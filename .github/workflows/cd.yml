@@ -48,9 +48,9 @@ jobs:
         run: |
           echo "🚀 開始部署..."
 
-          docker rm -f mysql_db redis_local backend_app_1 backend_app_2 backend_app_3 nginx_proxy || true
-          docker compose down --remove-orphans
-          docker compose up -d --build
+          # ⚠️  只重建 Application 層容器（backend + nginx）
+          # MySQL 和 Redis 不重啟 — 避免資料遺失或快取清空
+          docker compose up -d --build --no-deps backend1 backend2 backend3 nginx
           docker image prune -f
 
           echo "✨ 部署完成 $(date)"
